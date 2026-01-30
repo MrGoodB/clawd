@@ -1,159 +1,117 @@
 ---
 name: reddit
-description: Browse and interact with Reddit - read posts, comments, subreddits, and user profiles. Use when you need to monitor subreddits, search Reddit content, or gather community insights. Read-only by default (no auth), posting requires OAuth.
+description: Browse, post, comment, and vote on Reddit as a human user. Use when you need to participate in subreddit communities, research discussions, or promote content organically.
 ---
 
-# Reddit API
+# Reddit Skill
 
-Access Reddit content via JSON API (no auth for reading) or OAuth (for posting).
+Control Reddit as a human user via session cookies.
 
-## Read Without Auth
+## Setup
 
-Add `.json` to any Reddit URL:
+Export cookies from your browser after logging into Reddit:
+1. Open Reddit in browser, log in
+2. Open DevTools → Application → Cookies → reddit.com
+3. Copy these cookies: `reddit_session`, `token_v2`, `loid`, `session_tracker`
+4. Add to TOOLS.md:
 
-```bash
-# Subreddit posts
-curl -s "https://www.reddit.com/r/artificial/hot.json?limit=10" \
-  -H "User-Agent: Clawdbot/1.0" | jq '.data.children[].data | {title, score, url, permalink}'
-
-# Post comments
-curl -s "https://www.reddit.com/r/artificial/comments/POST_ID.json" \
-  -H "User-Agent: Clawdbot/1.0" | jq '.[1].data.children[].data | {author, body, score}'
+```markdown
+### Reddit
+- reddit_session: `your_session_cookie`
+- token_v2: `your_token`
 ```
 
-Always include User-Agent header.
+Or set env vars: `REDDIT_SESSION`, `REDDIT_TOKEN_V2`
 
-## Subreddit Feeds
+## Commands
 
+### Browse a subreddit
 ```bash
-# Hot posts
-curl -s "https://www.reddit.com/r/technology/hot.json?limit=25" \
-  -H "User-Agent: Clawdbot/1.0" | jq '.data.children[].data | {title, score, num_comments}'
-
-# New posts
-curl -s "https://www.reddit.com/r/technology/new.json?limit=25" \
-  -H "User-Agent: Clawdbot/1.0"
-
-# Top posts (today/week/month/year/all)
-curl -s "https://www.reddit.com/r/technology/top.json?t=week&limit=25" \
-  -H "User-Agent: Clawdbot/1.0"
-
-# Rising posts
-curl -s "https://www.reddit.com/r/technology/rising.json" \
-  -H "User-Agent: Clawdbot/1.0"
+reddit browse r/SideProject --sort hot --limit 25
 ```
 
-## Search Reddit
-
+### Read a post and comments
 ```bash
-# Search all of Reddit
-curl -s "https://www.reddit.com/search.json?q=artificial%20intelligence&sort=relevance&limit=25" \
-  -H "User-Agent: Clawdbot/1.0" | jq '.data.children[].data | {subreddit, title, score}'
-
-# Search within subreddit
-curl -s "https://www.reddit.com/r/MachineLearning/search.json?q=transformer&restrict_sr=on&limit=25" \
-  -H "User-Agent: Clawdbot/1.0"
+reddit read <post_url_or_id>
 ```
 
-## User Profile
-
+### Post to a subreddit
 ```bash
-USERNAME="spez"
-
-# User's posts
-curl -s "https://www.reddit.com/user/${USERNAME}/submitted.json" \
-  -H "User-Agent: Clawdbot/1.0" | jq '.data.children[].data | {title, subreddit, score}'
-
-# User's comments
-curl -s "https://www.reddit.com/user/${USERNAME}/comments.json" \
-  -H "User-Agent: Clawdbot/1.0" | jq '.data.children[].data | {body, subreddit, score}'
-
-# User about
-curl -s "https://www.reddit.com/user/${USERNAME}/about.json" \
-  -H "User-Agent: Clawdbot/1.0" | jq '.data | {name, total_karma, created_utc}'
+reddit post r/SideProject --title "Show r/SideProject: My AI assistant" --text "Built this over the weekend..."
+reddit post r/pics --title "Amazing sunset" --image /path/to/image.jpg
+reddit post r/videos --title "Demo" --url "https://youtube.com/..."
 ```
 
-## Subreddit Info
-
+### Comment on a post
 ```bash
-SUBREDDIT="artificial"
-
-curl -s "https://www.reddit.com/r/${SUBREDDIT}/about.json" \
-  -H "User-Agent: Clawdbot/1.0" | jq '.data | {display_name, subscribers, public_description}'
+reddit comment <post_id> "Great project! How did you handle X?"
+reddit reply <comment_id> "Thanks! I used Y approach..."
 ```
 
-## Pagination
-
-Use `after` parameter with the `name` of the last item:
-
+### Vote
 ```bash
-# First page
-RESPONSE=$(curl -s "https://www.reddit.com/r/technology/hot.json?limit=25" \
-  -H "User-Agent: Clawdbot/1.0")
-
-AFTER=$(echo $RESPONSE | jq -r '.data.after')
-
-# Next page
-curl -s "https://www.reddit.com/r/technology/hot.json?limit=25&after=${AFTER}" \
-  -H "User-Agent: Clawdbot/1.0"
+reddit upvote <post_or_comment_id>
+reddit downvote <post_or_comment_id>
 ```
 
-## Multi-Subreddit
-
+### Search
 ```bash
-# Combine multiple subreddits
-curl -s "https://www.reddit.com/r/artificial+MachineLearning+deeplearning/hot.json?limit=25" \
-  -H "User-Agent: Clawdbot/1.0"
+reddit search "AI chatbot" --subreddit SideProject --sort relevance --time week
 ```
 
-## OAuth Setup (For Posting)
-
-1. Create app: https://www.reddit.com/prefs/apps
-2. Note client_id and secret
-3. Get access token:
-
+### Check notifications
 ```bash
-CLIENT_ID="your_client_id"
-CLIENT_SECRET="your_secret"
-
-# Script/personal use token
-curl -s -X POST "https://www.reddit.com/api/v1/access_token" \
-  -u "${CLIENT_ID}:${CLIENT_SECRET}" \
-  -d "grant_type=password&username=YOUR_USERNAME&password=YOUR_PASSWORD" \
-  -H "User-Agent: Clawdbot/1.0" | jq '.access_token'
+reddit inbox
+reddit inbox --unread
 ```
 
-## Posting (Requires OAuth)
-
+### Get user info
 ```bash
-ACCESS_TOKEN="your_token"
-
-# Submit link post
-curl -s -X POST "https://oauth.reddit.com/api/submit" \
-  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-  -H "User-Agent: Clawdbot/1.0" \
-  -d "sr=test&kind=link&title=Test%20Post&url=https://example.com"
-
-# Submit text post
-curl -s -X POST "https://oauth.reddit.com/api/submit" \
-  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-  -H "User-Agent: Clawdbot/1.0" \
-  -d "sr=test&kind=self&title=Test%20Post&text=Post%20content%20here"
+reddit user <username>
+reddit me  # current user
 ```
 
-## Comment (Requires OAuth)
+## Best Practices for Organic Promotion
 
-```bash
-THING_ID="t3_POST_ID"  # t3_ for posts, t1_ for comments
+1. **Build karma first** - Comment helpfully before posting
+2. **Follow subreddit rules** - Each sub has different self-promo policies
+3. **Be genuine** - Help people, don't just drop links
+4. **Timing matters** - Post when US is awake (14:00-22:00 UTC)
+5. **Engage with comments** - Reply to everyone on your posts
 
-curl -s -X POST "https://oauth.reddit.com/api/comment" \
-  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-  -H "User-Agent: Clawdbot/1.0" \
-  -d "thing_id=${THING_ID}&text=Your%20comment%20here"
-```
+## Target Subreddits for Asklee
+
+| Subreddit | Karma Req | Self-promo rules |
+|-----------|-----------|------------------|
+| r/SideProject | Low | Allowed, be helpful |
+| r/selfhosted | Medium | Show technical depth |
+| r/artificial | Medium | News/discussion focus |
+| r/ChatGPT | Low | High volume, stand out |
+| r/LocalLLaMA | Medium | Technical audience |
+| r/startups | High | Provide value first |
 
 ## Rate Limits
 
-- 60 requests/minute (with OAuth)
-- 10 requests/minute (without OAuth)
-- Respect `X-Ratelimit-*` headers
+- Posts: 1 per 10 minutes (new accounts stricter)
+- Comments: ~1 per minute
+- Votes: No strict limit but don't spam
+- Wait 24h between posts to same subreddit
+
+## Example Workflow
+
+```bash
+# Research what's being discussed
+reddit browse r/SideProject --sort new --limit 50
+
+# Find relevant posts to engage with
+reddit search "AI assistant" --subreddit SideProject
+
+# Comment helpfully on a few posts first
+reddit comment abc123 "Have you tried using webhooks for this? Here's how I solved it..."
+
+# After building presence, share your project
+reddit post r/SideProject --title "Show r/SideProject: Asklee - Deploy an AI assistant to WhatsApp in 60 seconds" --text "Hey everyone! I built this because..."
+
+# Engage with all responses
+reddit inbox --unread
+```
